@@ -1,49 +1,46 @@
 #!/usr/bin/env python3
 """
-Telegram Alert System (UNLIMITED FREE)
-Real-time trading alerts
+Telegram Alerts - Fixed for GitHub Actions
+python-telegram-bot v13.15
 """
 
-from telegram import Bot
-from telegram.error import TelegramError
 import logging
+import requests
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 class TelegramAlerter:
-    """Send alerts via Telegram (100% FREE)"""
+    """Simple HTTP Telegram sender"""
     
     def __init__(self, bot_token: str, chat_id: str):
-        self.bot = Bot(token=bot_token)
+        self.bot_token = bot_token
         self.chat_id = chat_id
-        logger.info("🔔 Telegram Alerter initialized")
+        self.api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        logger.info("🔔 Telegram Alerter ready")
     
     def send_alert(self, symbol: str, sentiment: Dict, confidence: float, 
                    time_str: str, message: str = None):
-        """Send trading alert"""
+        """Send via HTTP (no library issues)"""
         
         if not message:
-            if abs(sentiment.get('aggregated', 0)) < 0.3:
-                return  # Skip neutral
+            score = sentiment.get('aggregated', 0)
+            if abs(score) < 0.3:
+                return
             
-            direction = "🟢 BUY" if sentiment['aggregated'] > 0 else "🔴 SELL"
-            message = f"""
-{direction} Signal - {symbol}
-
-📊 Score: {sentiment['aggregated']:.2f}
-💪 Strength: {sentiment.get('strength', 'NEUTRAL')}
-📰 Articles: {sentiment.get('count', 0)}
-📈 Confidence: {confidence:.0%}
-
-⏰ {time_str}
-            """
+            direction = "🟢 BUY" if score > 0 else "🔴 SELL"
+            message = f"{direction} {symbol}\nScore: {score:.2f}\n{time_str}"
         
         try:
-            self.bot.send_message(
-                chat_id=self.chat_id,
-                text=message,
-                parse_mode='Markdown'
-            )
-            logger.info(f"✅ Alert sent for {symbol}")
-        except TelegramError as e:
+            payload = {
+                'chat_id': self.chat_id,
+                'text': message,
+                'parse_mode': 'Markdown'
+            }
+            
+            response = requests.post(self.api_url, json=payload, timeout=10)
+            response.raise_for_status()
+            logger.info(f"✅ Alert sent: {symbol}")
+            
+        except Exception as e:
             logger.error(f"❌ Telegram error: {e}")
